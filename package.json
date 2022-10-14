@@ -1,0 +1,33 @@
+{
+  "author": "MegPunyu",
+  "bugs": {
+    "url": "https://github.com/MegPunyu/meg-frac/issues"
+  },
+  "description": "A class for representing real numbers as fractions.",
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^5.40.0",
+    "@typescript-eslint/parser": "^5.40.0",
+    "eslint": "^8.25.0",
+    "typescript": "^4.8.4"
+  },
+  "homepage": "https://github.com/MegPunyu/meg-frac#readme",
+  "keywords": [
+    "fraction",
+    "frac"
+  ],
+  "license": "MIT",
+  "main": "dist/index.js",
+  "name": "meg-frac",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MegPunyu/meg-frac.git"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "test": "eslint src/**/*.ts"
+  },
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "version": "1.0.0"
+}
