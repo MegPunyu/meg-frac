@@ -104,3 +104,28 @@ console.log(half.valueOf());  // 0.5
 half + half;  // 1
 half * half;  // 0.25
 ```
+
+### compare two fractions
+```javascript
+import Frac from "meg-frac";
+
+const half = new Frac(1, 2);
+
+// ===
+half.eq(half);  // true
+
+// !==
+half.neq(half);  // false
+
+// >
+half.gt(half);  // false
+
+// >=
+half.ge(half);  // true
+
+// <
+half.lt(half);  // false
+
+// <=
+half.le(half);  // true
+```

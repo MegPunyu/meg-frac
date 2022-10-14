@@ -218,6 +218,13 @@ export default class Frac {
         return new Frac(x.n ** power, x.d ** power) as IrreducibleFrac;
     }
 
+    public compare(compareFn: (a: number, b: number) => boolean, ...other: ConstructorParameters<typeof Frac>) {
+        const l = this.valueOf();
+        const r = new Frac(...other).valueOf();
+
+        return compareFn(l, r);
+    }
+
     /**
      * Returns whether the value of the given fraction is equal to the value of this.
      * 
@@ -227,11 +234,28 @@ export default class Frac {
      * half.equals(half);  // true
      * half.equals(1, 3);  // false
      */
-    public equals(...other: ConstructorParameters<typeof Frac>): boolean {
-        const l = this.reduce();
-        const r = new Frac(...other).reduce();
+    public eq(...other: ConstructorParameters<typeof Frac>): boolean {
+        return this.compare((a, b) => a === b, ...other);
+    }
 
-        return l.n === r.n && l.d === r.d;
+    public neq(...other: ConstructorParameters<typeof Frac>): boolean {
+        return this.compare((a, b) => a !== b, ...other);
+    }
+
+    public gt(...other: ConstructorParameters<typeof Frac>): boolean {
+        return this.compare((a, b) => a > b, ...other);
+    }
+
+    public lt(...other: ConstructorParameters<typeof Frac>): boolean {
+        return this.compare((a, b) => a < b, ...other);
+    }
+
+    public ge(...other: ConstructorParameters<typeof Frac>): boolean {
+        return this.compare((a, b) => a >= b, ...other);
+    }
+
+    public le(...other: ConstructorParameters<typeof Frac>): boolean {
+        return this.compare((a, b) => a <= b, ...other);
     }
 
     /**
