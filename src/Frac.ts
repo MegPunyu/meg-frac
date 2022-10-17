@@ -13,7 +13,7 @@ export default class Frac {
      * @param str a string to parse
      * @throws {SyntaxError} if invalid string is passed
      */
-    public static parse(str: string): Frac {
+    private static parse(str: string): Frac {
         const parser = new Parser(str);
         const frac = parser.parse();
         if (parser.current !== str.length) {
@@ -43,6 +43,28 @@ export default class Frac {
     }
 
     /**
+     * Calles itself recursively until an unnested and reduced fraction is obtained.
+     */
+    private static reduce(...other: ConstructorParameters<typeof Frac>): IrreducibleFrac {
+
+        const frac = new Frac(...other);
+        let val: IrreducibleFrac;
+
+        if (typeof frac.n === "number" && typeof frac.d === "number") {
+            val = frac as IrreducibleFrac;  // when numerator and denominator are both numbers
+
+        } else {
+            val = this.reduce(new Frac(frac.n).div(frac.d));
+        }
+
+        const s = Arith.gcd(val.n, val.d);
+        const d = Math.round(val.d / s);
+        const n = Math.round(val.n / s) * Math.sign(d);
+
+        return new Frac(n, Math.abs(d)) as IrreducibleFrac;
+    }
+
+    /**
      * Numerator.
      */
     #n: number | Frac;
@@ -63,7 +85,7 @@ export default class Frac {
      * Setter for the numerator.
      */
     public set n(value: number | Frac) {
-        this.#n = new Frac(value).n;
+        this.#n = new Frac(value, 1).n;
     }
 
     /** 
@@ -94,7 +116,6 @@ export default class Frac {
      * const quarter = new Frac("(1 / 4)");
      */
     public constructor(numerator: string | number | Frac, denominator?: number | Frac) {
-
         if (typeof numerator === "string") {
             const frac = Frac.parse(numerator);
             this.#n = frac.n;
@@ -130,7 +151,12 @@ export default class Frac {
      * const inv  = half.inv();      // (2 / 1)
      */
     public inv(): Frac {
-        return new Frac(this.d, this.n);
+        return new Frac(this).#inv();
+    }
+
+    #inv(): Frac {
+        [this.#n, this.#d] = [this.#d, this.#n];
+        return this;
     }
 
     /**
@@ -179,10 +205,33 @@ export default class Frac {
                 }
             } else {
                 if (typeof l === "number") {
-                    return new Frac(recursiveMul(l, r.n), r.d);  // recursiveMul(number, Frac) => new Frac(recursiveMul(number, Frac | number), (Frac | number))
+                    let a = l;
+                    let d = r.d;
+                    if (typeof d === "number") {
+                        const gcd = Arith.gcd(a, d);
+                        a /= gcd;
+                        d /= gcd;
+                    }
+                    return new Frac(recursiveMul(a, r.n), recursiveMul(1, d));  // recursiveMul(number, Frac) => new Frac(recursiveMul(number, Frac | number), recursiveMul(number, Frac | number),)
 
                 } else {
-                    return new Frac(recursiveMul(l.n, r.n), recursiveMul(l.d, r.d));  // recursiveMul(Frac, Frac) => new Frac(recursiveMul(Frac | number, Frac | number), recursiveMul(Frac | number, Frac | number))
+                    let a = l.n;
+                    let b = r.n;
+                    let c = l.d;
+                    let d = r.d;
+
+                    if (typeof a === "number" && typeof d === "number") {
+                        const gcd = Arith.gcd(a, d);
+                        a /= gcd;
+                        d /= gcd;
+                    }
+
+                    if (typeof b === "number" && typeof c === "number") {
+                        const gcd = Arith.gcd(b, c);
+                        b /= gcd;
+                        c /= gcd;
+                    }
+                    return new Frac(recursiveMul(a, b), recursiveMul(c, d));  // recursiveMul(Frac, Frac) => new Frac(recursiveMul(Frac | number, Frac | number), recursiveMul(Frac | number, Frac | number))
                 }
             }
         };
@@ -200,7 +249,11 @@ export default class Frac {
      * const one  = half.div(half);  // (1 / 1)
      */
     public div(...other: ConstructorParameters<typeof Frac>): IrreducibleFrac {
-        return this.mul(new Frac(...other).inv());
+        return this.mul(new Frac(...other).#inv());
+    }
+
+    #div(other: Frac) {
+        return this.mul(other.#inv());
     }
 
     /**
@@ -267,28 +320,9 @@ export default class Frac {
      * half.reduce();  // (1 / 2)
      */
     public reduce(): IrreducibleFrac {
-
-        // this function will be called reqursively until an unnested and reduced fraction is obtained.
-        const recursiveReduce = (frac: Frac): IrreducibleFrac => {
-
-            let val: IrreducibleFrac;
-
-            if (typeof frac.n === "number" && typeof frac.d === "number") {
-                val = frac as IrreducibleFrac;  // when numerator and denominator are both numbers
-
-            } else {
-                val = recursiveReduce(new Frac(frac.n).div(frac.d));
-            }
-
-            const s = Arith.gcd(val.n, val.d);
-            const d = Math.round(val.d / s);
-            const n = Math.round(val.n / s) * Math.sign(d);
-
-            return new Frac(n, Math.abs(d)) as IrreducibleFrac;
-        };
-
-        return recursiveReduce(this);
+        return Frac.reduce(this);
     }
+
 
     /**
      * Returns a string representation of the fraction.
