@@ -548,6 +548,10 @@ export default class Frac {
     /**
      * Returns a string representation of the fraction.
      * 
+     * @param spaces number of whitespaces
+     * @param indent indent size of the first line
+     * @param indentLevel indent level
+     * 
      * @example
      * const half = new Frac(1, 2);  // (1 / 2)
      * 

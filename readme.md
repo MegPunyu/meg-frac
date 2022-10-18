@@ -129,3 +129,35 @@ half.lt(half);  // false
 // <=
 half.le(half);  // true
 ```
+
+### destructive methods
+Methods whose names end in $ modify objects. These methods are more efficient than the methods introduced above since they do not copy objects internally.
+
+```javascript
+const half1 = new Frac(1, 2);  // (1 / 2)
+const half2 = new Frac(2, 4);  // (2 / 4)
+
+half1.add$(half2);  // (1 / 1)
+
+half1;  // (1 / 1)  <- replaced by the result of an operation
+half2;  // (2 / 4)
+```
+
+```javascript
+const frac = new Frac("(1 / (1 / 2))");  // (1 / (1 / 2))
+
+frac.reduce$();  // (2 / 1)
+
+frac;  // (2 / 1)  <- replaced by the result of an operation
+```
+
+Methods whose names end in $$ modify arguments.
+```javascript
+const half1 = new Frac(1, 2);  // (1 / 2)
+const half2 = new Frac(2, 4);  // (2 / 4)
+
+half1.add$$(half2);  // (1 / 1)
+
+half1;  // (1 / 1)  <- replaced by the result of an operation
+half2;  // (1 / 2)  <- reduced
+```
