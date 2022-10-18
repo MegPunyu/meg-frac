@@ -13,8 +13,8 @@ export default class Frac {
      * @param str a string to parse
      * @throws {SyntaxError} if invalid string is passed
      */
-    private static parse(str: string): Frac {
-        const parser = new Parser(str);
+    public static parse(str: string): Frac {
+        const parser = new Parser(str, this.#from);
         const frac = parser.parse();
         if (parser.current !== str.length) {
             throw parser.errorMessage("unexpected end of input");
@@ -25,54 +25,66 @@ export default class Frac {
     /**
      * Checks the type of argument passed to the constructor. If the type is invalid, throws TypeError.
      */
-    private static formatArgumentValue(e: unknown, isNumerator: boolean): number | Frac | undefined {
-        if (typeof e === "number") {
-            if (Number.isSafeInteger(e)) {
-                return Math.floor(e);
+    static #validateArgs(e: unknown, isNumerator: boolean, deepCopy = true): undefined | number | Frac {
+        if (e === void 0) {
+            return e;
+
+        } else if (typeof e === "number") {
+            let num: number = e;
+            if (Number.isFinite(num)) {
+                num = Math.floor(num);
+            }
+
+            if (!isNumerator && num === 0) {
+                throw new TypeError("cannot divide by zero");
+            }
+
+            if (Number.isSafeInteger(num)) {
+                return num;
 
             } else {
                 throw new TypeError(`${isNumerator ? "numerator" : "denominator"} overflowed`);
             }
-        } else if (e instanceof Frac) {
-            return new Frac(e.n, e.d);
+        } else if (typeof e === "string") {
+            return this.parse(e);
 
-        } else if (e === void 0) {
-            return e;
+        } else if (e instanceof Frac) {
+            return deepCopy ? new this(e.n, e.d) : e;
+
         }
-        throw new TypeError(`${isNumerator ? "numerator" : "denominator"} must be a finite number or an instances of Frac`);
+
+        throw new TypeError(`${isNumerator ? "numerator" : "denominator"} must be a finite number or a string or an instances of Frac`);
     }
 
     /**
-     * Calles itself recursively until an unnested and reduced fraction is obtained.
+     * Unsafe constructor (for internal use only). It does not deepcopy objects.
      */
-    private static reduce(...other: ConstructorParameters<typeof Frac>): IrreducibleFrac {
+    static #from(numerator: number | Frac, denominator?: number | Frac): Frac {
 
-        const frac = new Frac(...other);
-        let val: IrreducibleFrac;
+        if (denominator !== void 0) {
+            const frac = new Frac();
+            [frac.n, frac.d] = [numerator, denominator];
+            return frac;
 
-        if (typeof frac.n === "number" && typeof frac.d === "number") {
-            val = frac as IrreducibleFrac;  // when numerator and denominator are both numbers
+        } else if (typeof numerator === "number") {
+            const frac = new Frac();
+            [frac.n, frac.d] = [numerator, 1];
+            return frac;
 
         } else {
-            val = this.reduce(new Frac(frac.n).div(frac.d));
+            return numerator;
         }
-
-        const s = Arith.gcd(val.n, val.d);
-        const d = Math.round(val.d / s);
-        const n = Math.round(val.n / s) * Math.sign(d);
-
-        return new Frac(n, Math.abs(d)) as IrreducibleFrac;
     }
 
     /**
      * Numerator.
      */
-    #n: number | Frac;
+    #n: number | Frac = 0;
 
     /**
      * Denominator.
      */
-    #d: number | Frac;
+    #d: number | Frac = 1;
 
     /** 
      * Getter for the numerator.
@@ -85,7 +97,7 @@ export default class Frac {
      * Setter for the numerator.
      */
     public set n(value: number | Frac) {
-        this.#n = new Frac(value, 1).n;
+        this.#n = Frac.#validateArgs(value, true, false) ?? 0;
     }
 
     /** 
@@ -99,7 +111,7 @@ export default class Frac {
      * Setter for the denominator.
      */
     public set d(value: number | Frac) {
-        this.#d = new Frac(1, value).d;
+        this.#d = Frac.#validateArgs(value, false, false) ?? 1;
     }
 
     /**
@@ -115,22 +127,12 @@ export default class Frac {
      * 
      * const quarter = new Frac("(1 / 4)");
      */
-    public constructor(numerator: string | number | Frac, denominator?: number | Frac) {
-        if (typeof numerator === "string") {
-            const frac = Frac.parse(numerator);
-            this.#n = frac.n;
-            this.#d = frac.d;
-            return;
-        }
-
-        const n = Frac.formatArgumentValue(numerator, true);
-        const d = Frac.formatArgumentValue(denominator, false);
+    public constructor(numerator?: string | number | Frac, denominator?: number | Frac) {
+        const n = Frac.#validateArgs(numerator, true);
+        const d = Frac.#validateArgs(denominator, false);
 
         if (n === void 0) {
-            throw new TypeError("numerator not specified");
-
-        } else if (d === 0) {
-            throw new TypeError("cannot divide by zero");
+            [this.#n, this.#d] = [0, 1];
 
         } else if (d) {
             [this.#n, this.#d] = [n, d];
@@ -139,7 +141,7 @@ export default class Frac {
             [this.#n, this.#d] = [n, 1];
 
         } else {
-            [this.#n, this.#d] = [n.n, n.d];
+            return n;
         }
     }
 
@@ -151,10 +153,19 @@ export default class Frac {
      * const inv  = half.inv();      // (2 / 1)
      */
     public inv(): Frac {
-        return new Frac(this).#inv();
+        return new Frac(this).inv$();
     }
 
-    #inv(): Frac {
+    /**
+     * Returns the inverse of the fraction (destructive).
+     * 
+     * @example
+     * const half = new Frac(1, 2);  // (1 / 2)
+     * const inv  = half.inv$();     // (2 / 1)
+     * 
+     * half;  // (2 / 1)
+     */
+    public inv$(): typeof this {
         [this.#n, this.#d] = [this.#d, this.#n];
         return this;
     }
@@ -167,10 +178,44 @@ export default class Frac {
      * const one  = half.add(half);  // (1 / 1)
      */
     public add(...other: ConstructorParameters<typeof Frac>): IrreducibleFrac {
-        const [l, r] = [this.reduce(), new Frac(...other).reduce()];
+        return new Frac(this).add$$(new Frac(...other));
+    }
+
+    /**
+     * Returns the sum of two fractions (destructive / argument value will not be changed).
+     * 
+     * @example
+     * const half1 = new Frac(1, 2);  // (1 / 2)
+     * const half2 = new Frac(2, 4);  // (2 / 4)
+     * 
+     * half1.add$(half2);  // (1 / 1)
+     * 
+     * half1;  // (1 / 1)
+     * half2;  // (2 / 4)
+     */
+    public add$(other: Frac): IrreducibleFrac {
+        return this.add$$(new Frac(other));
+    }
+
+    /**
+     * Returns the sum of two fractions (destructive / argument value will be reduced).
+     * 
+     * @example
+     * const half1 = new Frac(1, 2);  // (1 / 2)
+     * const half2 = new Frac(2, 4);  // (2 / 4)
+     * 
+     * half1.add$$(half2);  // (1 / 1)
+     * 
+     * half1;  // (1 / 1)
+     * half2;  // (1 / 2)
+     */
+    public add$$(other: Frac): IrreducibleFrac {
+        const [l, r] = [this.reduce$(), other.reduce$()];
         const d = Arith.lcm(l.d, r.d);
 
-        return new Frac(Math.round(d / l.d * l.n + d / r.d * r.n), d).reduce();
+        this.n = d / l.d * l.n + d / r.d * r.n;
+        this.d = d;
+        return this.reduce$();
     }
 
     /**
@@ -181,7 +226,40 @@ export default class Frac {
      * const zero = half.sub(half);  // (0 / 1)
      */
     public sub(...other: ConstructorParameters<typeof Frac>): IrreducibleFrac {
-        return this.add(new Frac(...other).mul(-1));
+        return new Frac(this).sub$$(new Frac(...other));
+    }
+
+    /**
+      * Returns the subtraction of two fractions (destructive / argument value will not be changed).
+      * 
+      * @example
+      * const half1 = new Frac(1, 2);  // (1 / 2)
+      * const half2 = new Frac(2, 4);  // (2 / 4)
+      * 
+      * half1.sub$(half2);  // (0 / 1)
+      * 
+      * half1;  // (0 / 1)
+      * half2;  // (2 / 4)
+      */
+    public sub$(other: Frac): IrreducibleFrac {
+        return this.sub$$(new Frac(other));
+    }
+
+    /**
+      * Returns the subtraction of two fractions (destructive / argument value will be reduced).
+      * 
+      * @example
+      * const half1 = new Frac(1, 2);  // (1 / 2)
+      * const half2 = new Frac(2, 4);  // (2 / 4)
+      * 
+      * half1.sub$$(half2);  // (0 / 1)
+      * 
+      * half1;  // (0 / 1)
+      * half2;  // (1 / 2)
+      */
+    public sub$$(other: Frac): IrreducibleFrac {
+        const r = other.reduce$();
+        return this.add$$(Frac.#from(-r.n, r.d));
     }
 
     /**
@@ -192,53 +270,63 @@ export default class Frac {
      * const quarter = half.mul(half);  // (1 / 4)
      */
     public mul(...other: ConstructorParameters<typeof Frac>): IrreducibleFrac {
+        return new Frac(this).mul$$(new Frac(...other));
+    }
 
-        // this function will be called recursively until an unnested fraction is obtained.
-        const recursiveMul = (l: Frac | number, r: Frac | number): Frac | number => {
+    /**
+      * Returns the production of two fractions (destructive / argument value will be reduced).
+      * 
+      * @example
+      * const half1 = new Frac(1, 2);  // (1 / 2)
+      * const half2 = new Frac(2, 4);  // (2 / 4)
+      * 
+      * half1.mul$$(half2);  // (1 / 4)
+      * 
+      * half1;  // (1 / 4)
+      * half2;  // (1 / 2)
+      */
+    public mul$$(other: Frac): IrreducibleFrac {
+        return this.mul$(other.reduce$());
+    }
 
-            if (typeof r === "number") {
-                if (typeof l === "number") {
-                    return r * l;  // recursiveMul(number, number) => number
+    /**
+      * Returns the production of two fractions (destructive / argument value will not be changed).
+      * 
+      * @example
+      * const half1 = new Frac(1, 2);  // (1 / 2)
+      * const half2 = new Frac(2, 4);  // (2 / 4)
+      * 
+      * half1.mul$(half2);  // (1 / 4)
+      * 
+      * half1;  // (1 / 4)
+      * half2;  // (2 / 4)
+      */
+    public mul$(other: Frac): IrreducibleFrac {
 
-                } else {
-                    return recursiveMul(r, l);  // recursiveMul(Frac, number) => recursiveMul(number, Frac)
-                }
-            } else {
-                if (typeof l === "number") {
-                    let a = l;
-                    let d = r.d;
-                    if (typeof d === "number") {
-                        const gcd = Arith.gcd(a, d);
-                        a /= gcd;
-                        d /= gcd;
-                    }
-                    return new Frac(recursiveMul(a, r.n), recursiveMul(1, d));  // recursiveMul(number, Frac) => new Frac(recursiveMul(number, Frac | number), recursiveMul(number, Frac | number),)
+        let n = other.#n;
+        let d = other.#d;
 
-                } else {
-                    let a = l.n;
-                    let b = r.n;
-                    let c = l.d;
-                    let d = r.d;
+        if (typeof this.#n === "number" && typeof d === "number") {
+            [this.#n, d] = Arith.ratio(this.#n, d);
+        }
 
-                    if (typeof a === "number" && typeof d === "number") {
-                        const gcd = Arith.gcd(a, d);
-                        a /= gcd;
-                        d /= gcd;
-                    }
+        if (typeof this.#d === "number" && typeof n === "number") {
+            [this.#d, n] = Arith.ratio(this.#d, n);
+        }
 
-                    if (typeof b === "number" && typeof c === "number") {
-                        const gcd = Arith.gcd(b, c);
-                        b /= gcd;
-                        c /= gcd;
-                    }
-                    return new Frac(recursiveMul(a, b), recursiveMul(c, d));  // recursiveMul(Frac, Frac) => new Frac(recursiveMul(Frac | number, Frac | number), recursiveMul(Frac | number, Frac | number))
-                }
-            }
-        };
+        if (typeof this.#n === "number" && typeof n === "number") {
+            this.n = this.#n * n;
+        } else {
+            this.#n = Frac.#from(this.#n).mul$$(Frac.#from(n));
+        }
 
-        const multipliedFrac = recursiveMul(this.reduce(), new Frac(...other).reduce()) as Frac;  // recursiveMul() returns a Frac (e.g. (2 / 4) )
+        if (typeof this.#d === "number" && typeof d === "number") {
+            this.d = this.#d * d;
+        } else {
+            this.#d = Frac.#from(this.#d).mul$$(Frac.#from(d));
+        }
 
-        return multipliedFrac.reduce();  // reduce the result (e.g. (2 / 4) => (1 / 2) )
+        return this.reduce$();
     }
 
     /**
@@ -249,11 +337,41 @@ export default class Frac {
      * const one  = half.div(half);  // (1 / 1)
      */
     public div(...other: ConstructorParameters<typeof Frac>): IrreducibleFrac {
-        return this.mul(new Frac(...other).#inv());
+        return new Frac(this).div$$(new Frac(...other));
     }
 
-    #div(other: Frac) {
-        return this.mul(other.#inv());
+    /**
+      * Returns the quotient of two fractions (destructive / argument value will not be changed).
+      * 
+      * @example
+      * const half1 = new Frac(1, 2);  // (1 / 2)
+      * const half2 = new Frac(2, 4);  // (2 / 4)
+      * 
+      * half1.div$(half2);  // (1 / 1)
+      * 
+      * half1;  // (1 / 1)
+      * half2;  // (2 / 4)
+      */
+    public div$(other: Frac): IrreducibleFrac {
+        return this.div$$(new Frac(other));
+    }
+
+    /**
+      * Returns the quotient of two fractions (destructive / argument value will be reduced).
+      * 
+      * @example
+      * const half1 = new Frac(1, 2);  // (1 / 2)
+      * const half2 = new Frac(2, 4);  // (2 / 4)
+      * 
+      * half1.div$$(half2);  // (1 / 1)
+      * 
+      * half1;  // (1 / 1)
+      * half2;  // (1 / 2)
+      */
+    public div$$(other: Frac): IrreducibleFrac {
+        const result = this.mul$$(other.inv$());
+        other.inv$().reduce$();
+        return result;
     }
 
     /**
@@ -266,49 +384,31 @@ export default class Frac {
      * const quarter = half.pow(2);     // (1 / 4)
      */
     public pow(power: number): IrreducibleFrac {
-        const x = this.reduce();
-
-        return new Frac(x.n ** power, x.d ** power) as IrreducibleFrac;
-    }
-
-    public compare(compareFn: (a: number, b: number) => boolean, ...other: ConstructorParameters<typeof Frac>) {
-        const l = this.valueOf();
-        const r = new Frac(...other).valueOf();
-
-        return compareFn(l, r);
+        return new Frac(this).pow$(power);
     }
 
     /**
-     * Returns whether the value of the given fraction is equal to the value of this.
-     * 
-     * @example
-     * const half = new Frac(1, 2);  // (1 / 2)
-     * 
-     * half.equals(half);  // true
-     * half.equals(1, 3);  // false
-     */
-    public eq(...other: ConstructorParameters<typeof Frac>): boolean {
-        return this.compare((a, b) => a === b, ...other);
-    }
+      * Returns the fraction taken to a specified power (destructive).
+      * 
+      * @example
+      * const half = new Frac(1, 2);  // (1 / 2)
+      * 
+      * half.pow$(2);  // (1 / 4)
+      * 
+      * half;  // (1 / 4)
+      */
+    public pow$(power: number): IrreducibleFrac {
+        if (power < 0) {
+            power = Math.abs(power);
+            this.inv$();
+        }
 
-    public neq(...other: ConstructorParameters<typeof Frac>): boolean {
-        return this.compare((a, b) => a !== b, ...other);
-    }
+        const frac = this.reduce$();
 
-    public gt(...other: ConstructorParameters<typeof Frac>): boolean {
-        return this.compare((a, b) => a > b, ...other);
-    }
+        frac.n **= power.valueOf();
+        frac.d **= power.valueOf();
 
-    public lt(...other: ConstructorParameters<typeof Frac>): boolean {
-        return this.compare((a, b) => a < b, ...other);
-    }
-
-    public ge(...other: ConstructorParameters<typeof Frac>): boolean {
-        return this.compare((a, b) => a >= b, ...other);
-    }
-
-    public le(...other: ConstructorParameters<typeof Frac>): boolean {
-        return this.compare((a, b) => a <= b, ...other);
+        return frac;
     }
 
     /**
@@ -320,9 +420,130 @@ export default class Frac {
      * half.reduce();  // (1 / 2)
      */
     public reduce(): IrreducibleFrac {
-        return Frac.reduce(this);
+        return new Frac(this).reduce$();
     }
 
+    /**
+     * Returns the reduced fraction (destructive).
+     * 
+     * @example
+     * const half = new Frac(2, 4);  // (2 / 4)
+     * 
+     * half.reduce$();  // (1 / 2)
+     * 
+     * half;  // (1 / 2)
+     */
+    public reduce$(): IrreducibleFrac {
+        if (typeof this.#n === "number" && typeof this.#d === "number") {
+
+            const s = Arith.gcd(this.#n, this.#d);
+            const sign = Math.sign(this.#d);
+
+
+            this.n = this.#n / Math.abs(s) * sign;
+            this.d = Math.abs(this.#d / s);
+
+        } else {
+            const frac = Frac.#from(this.#n).div$$(Frac.#from(this.#d));
+            [this.#n, this.#d] = [frac.#n, frac.#d];
+        }
+
+        return this as IrreducibleFrac;
+    }
+
+    /**
+      * Compare the value of two fractions with a callback function.
+      * 
+      * @example
+      * const half = new Frac(1, 2);  // (1 / 2)
+      * 
+      * half.compare((a, b) => a === b, half);  // true
+      * half.compare((a, b) => a < b, 1, 3);    // false
+      */
+    public compare(compareFn: (a: number, b: number) => boolean, ...other: ConstructorParameters<typeof Frac>) {
+        const l = this.valueOf();
+        const r = new Frac(...other).valueOf();
+
+        return compareFn(l, r);
+    }
+
+    /**
+     * Returns whether the value of the object is equal to the value of the given fraction. The parameter types are the same as those of the constructor.
+     * 
+     * @example
+     * const half = new Frac(1, 2);  // (1 / 2)
+     * 
+     * half.eq(half);  // true
+     * half.eq(1, 3);  // false
+     */
+    public eq(...other: ConstructorParameters<typeof Frac>): boolean {
+        return this.compare((a, b) => a === b, ...other);
+    }
+
+    /**
+      * Returns whether the value of the object is not equal to the value of the given fraction. The parameter types are the same as those of the constructor.
+      * 
+      * @example
+      * const half = new Frac(1, 2);  // (1 / 2)
+      * 
+      * half.neq(half);  // false
+      * half.neq(1, 3);  // true
+      */
+    public neq(...other: ConstructorParameters<typeof Frac>): boolean {
+        return this.compare((a, b) => a !== b, ...other);
+    }
+
+    /**
+      * Returns whether the value of the object is greater than the value of the given fraction. The parameter types are the same as those of the constructor.
+      * 
+      * @example
+      * const half = new Frac(1, 2);  // (1 / 2)
+      * 
+      * half.gt(half);  // false
+      * half.gt(1, 3);  // true
+      */
+    public gt(...other: ConstructorParameters<typeof Frac>): boolean {
+        return this.compare((a, b) => a > b, ...other);
+    }
+
+    /**
+      * Returns whether the value of the object is less than the value of the given fraction. The parameter types are the same as those of the constructor.
+      * 
+      * @example
+      * const half = new Frac(1, 2);  // (1 / 2)
+      * 
+      * half.lt(half);  // false
+      * half.lt(1, 3);  // false
+      */
+    public lt(...other: ConstructorParameters<typeof Frac>): boolean {
+        return this.compare((a, b) => a < b, ...other);
+    }
+
+    /**
+      * Returns whether the value of the object is greater than or equal to the value of the given fraction. The parameter types are the same as those of the constructor.
+      * 
+      * @example
+      * const half = new Frac(1, 2);  // (1 / 2)
+      * 
+      * half.ge(half);  // true
+      * half.ge(1, 3);  // true
+      */
+    public ge(...other: ConstructorParameters<typeof Frac>): boolean {
+        return this.compare((a, b) => a >= b, ...other);
+    }
+
+    /**
+      * Returns whether the value of the object is less than or equal to the value of the given fraction. The parameter types are the same as those of the constructor.
+      * 
+      * @example
+      * const half = new Frac(1, 2);  // (1 / 2)
+      * 
+      * half.ge(half);  // true
+      * half.ge(1, 3);  // false
+      */
+    public le(...other: ConstructorParameters<typeof Frac>): boolean {
+        return this.compare((a, b) => a <= b, ...other);
+    }
 
     /**
      * Returns a string representation of the fraction.
@@ -336,8 +557,10 @@ export default class Frac {
      * 
      * nest.toString();  // "((1 / 2) / (1 / 2))"
      */
-    public toString(): string {
-        return `(${this.n.toString()} / ${this.d.toString()})`;
+    public toString(spaces = 1, indent = 0, indentLevel = 0): string {
+        const newLine = indentLevel > 0 ? "\n" : "";
+        const whiteSpace = " ".repeat(spaces);
+        return `(${newLine}${" ".repeat(indent + indentLevel)}${typeof this.n === "number" ? this.n : this.n.toString(spaces, indent + indentLevel, indentLevel)}${whiteSpace}/${whiteSpace}${typeof this.d === "number" ? this.d : this.d.toString(spaces, indent + indentLevel, indentLevel)}${newLine}${" ".repeat(indent)})`;
     }
 
     /**

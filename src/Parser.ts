@@ -18,6 +18,8 @@ export default class Parser {
      */
     private readonly str: string;
 
+    private readonly fracConstructor: (n: number | Frac, d: number | Frac) => Frac;
+
     /**
      * Current position.
      */
@@ -26,9 +28,10 @@ export default class Parser {
     /**
      * Constructor.
      */
-    public constructor(str: string) {
+    public constructor(str: string, fracConstructor: (n: number | Frac, d: number | Frac) => Frac) {
         this.current = 0;
         this.str = str;
+        this.fracConstructor = fracConstructor;
     }
 
     /**
@@ -163,6 +166,6 @@ export default class Parser {
 
         this.eatWhitespace();
 
-        return new Frac(numerator, denominator);
+        return this.fracConstructor(numerator, denominator);
     }
 }

@@ -21,4 +21,9 @@ export default class Arith {
     public static lcm(a: number, b: number): number {
         return b / this.gcd(a, b) * a;
     }
+
+    public static ratio(a: number, b: number): number[] {
+        const gcd = this.gcd(a, b);
+        return [a / gcd, b / gcd];
+    }
 }
